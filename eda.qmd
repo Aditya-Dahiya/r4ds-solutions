@@ -1,7 +1,1322 @@
 ---
 title: "Exploratory data analysis"
 ---
+## Prerequisites {.unnumbered}
 
-::: callout-warning
-Solutions for this chapter are under construction.
-:::
+```{r}
+#| label: setup
+#| echo: true
+
+library(tidyverse)
+library(gt)
+library(RColorBrewer)
+data("diamonds")
+```
+
+## 11.3.3 Exercises {.unnumbered}
+
+1. Upon exploratory data analysis (code shown below), I learn the following insights: ---
+
+-   There are outliers in distribution of `x` , there are eight diamonds with zero value of `x`, but no outliers on higher side.
+
+-   There are outliers in distribution of `y` , there are eight diamonds with zero value of `y`, and 2 outliers on higher side.
+
+-   There are outliers in distribution of `z` , there are 20 diamonds with zero value of `z`, and 1 outlier on higher side.
+
+-   The correlation between the variables show that `x` , `y` , and `z` are strongly positively correlated amongst themselves and with the weight (`carat`).
+
+-   The mean values of `x` , `y` and `z` are 5.73, 5.73 and 3.54. Thus, it is possible that `x` and `y` represent either of length and width, while `z` represents depth.
+
+-   Now, upon visualizing the density plots of `x` , `y` and `z` , we see that `x` and `y` are similar distributed so, they must be length and breadth, but `z` is smaller in value. So, `z` must be depth.
+
+```{r}
+#| label: q1-ex3
+#| eval: false
+#| code-fold: true
+
+data("diamonds")
+diamonds |>
+  ggplot(aes(x = x,
+             fill = (x ==  0 | x > 12))) +
+  geom_histogram(binwidth = 0.1) +
+  coord_cartesian(ylim = c(0,10))
+
+
+diamonds |>
+  ggplot(aes(x = y,
+             fill = (y ==  0 | y > 12))) +
+  geom_histogram(binwidth = 0.1) +
+  coord_cartesian(ylim = c(0,10))
+
+diamonds |>
+  ggplot(aes(x = z,
+             fill = (z ==  0 | z > 12))) +
+  geom_histogram(binwidth = 0.1) +
+  coord_cartesian(ylim = c(0,20))
+
+diamonds |>
+  summarize(x = mean(x),
+            y = mean(y),
+            z = mean(z))
+
+diamonds |>
+  filter(x == 0 | z == 0 | y == 0)
+
+diamonds |>
+  select(x, y, z) |>
+  pivot_longer(cols = everything(),
+               names_to = "dimension",
+               values_to = "value") |>
+  ggplot() +
+  geom_density(aes(x = value,
+                   col = dimension)) +
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  coord_cartesian(xlim = c(0, 10))
+
+```
+
+2. The distribution of price shows a surprising fact in @fig-q2-ex3 that there are no diamonds priced between \$1,450 and \$1,550.
+
+```{r}
+#| label: fig-q2-ex3
+#| fig-cap: "The hisotgram of diamonds' prices, focussed in area around $1500 price tag"
+
+diamonds |>
+  ggplot(aes(price)) +
+  geom_histogram(binwidth = 10, 
+                 fill = "lightgrey", 
+                 color = "darkgrey") + 
+  coord_cartesian(xlim = c(500, 2000)) + 
+  scale_x_continuous(breaks = seq(from = 500, to = 2000, by = 100)) +
+  theme_minimal()
+```
+
+3. There are only 23 diamonds of 0.99 carat, but 1,558 diamonds of 1 carat.
+
+The possible cause of this difference is that the weight recorder or measurement instrument rounded off to the nearest integer, especially if `carat` was 0.99.
+
+```{r}
+diamonds |>
+  select(carat) |>
+  filter(carat == 0.99 | carat == 1) |>
+  group_by(carat) |>
+  count()
+```
+
+4. Both `coord_cartesian()` and `xlim()` / `ylim()` serve a similar purpose of adjusting the visible range of data in a plot, but they do so in slightly different ways. The @fig-q4-ex3 shows the difference.
+
+------------------------------------------------------------------------
+
+**`xlim()`** and **`ylim()`** are functions in R that directly modify the data range that is displayed on the x-axis and y-axis, respectively. The `xlim()` / `ylim()` replace all values outside the range into `NAs` . They remove the data outside the limits. They can be used to zoom in on specific portions of the plot.
+
+-   **Pros**:
+
+    -   Can help emphasize specific details or patterns in the data after removal of outliers.
+
+-   **Cons**:
+
+    -   Data points outside the specified range are removed from the plot, potentially leading to a loss of context.
+
+    -   If used improperly, it can distort the visual representation of the data, making it appear more or less significant than it actually is.
+
+        ------------------------------------------------------------------------
+
+**`coord_cartesian()`** allows us to adjust the visible range of data without altering the underlying data.
+
+-   **Pros**:
+
+    -   It does not remove any data points from the plot; it only changes the visible range.
+
+    -   Useful when you want to focus on a specific part of the plot while still having access to the full data context.
+
+-   **Cons**:
+
+    -   If there are outliers or extreme values, they might still affect the appearance of the plot.
+
+**Comparison**
+
+| **Aspect**                     | **`coord_cartesian()`**                    | **`xlim()`**/**`ylim()`**                                                               |
+|--------------------------------|--------------------------------------------|-----------------------------------------------------------------------------------------|
+| **Purpose**                    | Adjust visible range without altering data | Set specific data range to be displayed, removes data outside the range                 |
+| **Data Integrity**             | Maintains original data and scaling        | Can exclude data points outside range                                                   |
+| **Context**                    | Preserves overall data context             | May lose context due to excluded data; or reveal new insights upon removal of outliers. |
+| **Impact on Plot**             | Adjusts only the visible area              | Alters axes scaling and data representation                                             |
+| **Handling outliers**          | Keeps outliers within context              | Remove outliers outside the specified range                                             |
+| **Control over Range**         | Limited control over axes scaling          | Precise control over displayed range                                                    |
+| **Suitability for Histograms** | Recommended for maintaining bin sizes      | Can distort histogram representation                                                    |
+
+```{r}
+#| label: fig-q4-ex3
+#| fig-cap: "Difference between coord_cartesian() and xlim()/ylim()"
+#| fig-asp: 0.5
+
+gridExtra::grid.arrange(
+diamonds |>
+  ggplot(aes(x = y)) +
+  geom_histogram(binwidth = 0.1) + 
+  ylim(0, 1000) +
+  xlim(0, 10) +
+  labs(subtitle = "xlim and ylim remove data outside the limits, \neg. counts > 1000; or the observation at zero"),
+
+diamonds |>
+  ggplot(aes(x = y)) +
+  geom_histogram(binwidth = 0.1) + 
+  coord_cartesian(ylim = c(0, 1000),
+                  xlim = c(0, 10)) +
+  labs(subtitle = "coord_cartesian preserves data outside the limits, \neg. counts > 1000; or the observation at zero"),
+
+ncol = 2)
+```
+
+## 11.4.1 Exercises  {.unnumbered}
+
+1.  In a histogram, missing values are typically ignored. If there are missing values in your data, they won't be placed into any bin and won't contribute to the creation of bars in the histogram. Thus, histogram only shows the distribution of the non-missing values.
+
+In a bar chart, which is used to display categorical data, missing values are treated as a distinct category. When you create a bar chart using `ggplot2`, each unique category in your data is represented by a bar. If there are missing values, ggplot2 will include a separate bar to represent the missing category, often labeled as "`NA`" or "Missing".
+
+The difference in how missing values are handled in histograms and bar charts arises from their underlying purposes:
+
+-   **Histograms** are primarily used to visualize the distribution of continuous or numeric data. Since missing values don't have a specific numeric value to be placed into bins, it's common practice to exclude them.
+
+-   **Bar charts**, on the other hand, are used to compare the frequency or count of different categories. Missing values are treated as a category themselves.
+
+In summary, the distinction in handling missing values is based on the type of data being visualized and the purpose of each plot. Histograms focus on the distribution of non-missing numeric data, while bar charts emphasize the comparison of categorical data, including missing values as a separate category.
+
+```{r}
+#| label: q1
+
+# Set a random seed for reproducibility
+set.seed(123)
+
+# Create a sample dataset with missing values
+n = 200
+df = data.frame(
+  Category = sample(x = c("A", "B", "C", "D"), 
+                    size = n, 
+                    replace = TRUE),
+  Value = rnorm(n)
+)
+
+# Introduce missing values
+df$Value[sample(1:n, 40)] = NA
+df$Category[sample(1:n, 40)] = NA
+
+# Create plots to demonstrate
+gridExtra::grid.arrange(
+  ggplot(df, aes(x = Value)) +
+    geom_histogram(col = "grey", fill = "lightgrey") +
+    theme_minimal() +
+    labs(subtitle = "Histogram drops the missing values"),
+
+  ggplot(df, aes(x = Category)) +
+    geom_bar(col = "grey", fill = "lightgrey") + 
+    theme_minimal() +
+    labs(subtitle = "Bar Chart includes missing values as a category"),
+  
+  ncol = 2)
+```
+
+2.  When **`na.rm`** is set to **`TRUE`**, the function will remove any `NA` values from the input vector before performing the calculation. This means that the resulting mean or sum will only consider the non-missing values.
+
+This is important because in `R` , NAs cannot be added or subtrated or operated upon, for example, `NA + 1 = NA`. Thus, even if one observation is `NA`, the mean or sum of the entire vector will be `NA` . Hence, using `na.rm = TRUE` is important.
+
+```{r}
+mean(df$Value)
+mean(df$Value, na.rm = TRUE)
+sum(df$Value)
+sum(df$Value, na.rm = TRUE)
+```
+
+3.  The best value of scales to use is `scales = "free_y"` so that the two facets' y-axis are completely free and we can compare the distribution of cancelled flights vs. non-cancelled flights in @fig-q3-ex4.
+
+```{r}
+#| label: fig-q3-ex4
+#| fig-cap: "Comparison of cancelled vs. non-cancelled flights by faceting"
+
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |>
+  # Create nice names for "cancelled" to show in the eventual plot
+  mutate(cancelled = as_factor(ifelse(cancelled, 
+                                      "Cancelled Flights",
+                                      "Flights Not Cancelled"))) |>
+  ggplot(aes(x = sched_dep_time)) +
+  geom_freqpoly(lwd = 1) +
+  theme_minimal() + 
+  facet_wrap(~cancelled, 
+             scales = "free_y") +
+  labs(x = "Scheduled Departure Time (in hrs)",
+       y = "Number of flights") +
+  scale_x_continuous(breaks = seq(0, 24, 4))
+```
+
+## 11.5.1.1 Exercises  {.unnumbered}
+
+1.  The @fig-q1-ex5.1 shows an example to demonstrate exploratory data analysis in missing values in data-set `flights` of the package `nycflights13` . It shows that as the day progresses, more flights get cancelled. Evening flights are more likely to get cancelled than morning flights.
+
+```{r}
+#| label: fig-q1-ex5.1
+#| fig-cap: "Visualizing departure times of cancelled vs. non-cancelled flights"
+
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |>
+  ggplot(aes(x = sched_dep_time,
+             y = after_stat(density))) +
+  geom_freqpoly(aes(col = cancelled),
+                lwd = 1) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(x = "Scheduled Departure Time (in hrs)",
+       y = "Proportion of flights departed",
+       color = "Whether the flight was cancelled?",
+       subtitle = "Comparison of density frequency polygons of cancelled vs. non-cancelled flights") +
+  scale_x_continuous(breaks = seq(0,24, by = 2))
+
+```
+
+Another method to visualize it is shown using `stat = "density"` argument in the `geom_freqpoly()` in @fig-q1a-ex5.1 below.
+
+```{r}
+#| label: fig-q1a-ex5.1
+#| fig-cap: "Another method of visualizing departure times of cancelled vs. non-cancelled flights"
+#| code-fold: true
+
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |>
+  ggplot(aes(x = sched_dep_time)) +
+  geom_freqpoly(aes(col = cancelled),
+                stat = "density",
+                lwd = 1) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(x = "Scheduled Departure Time (in hrs)",
+       y = "Proportion of flights departed",
+       color = "Whether the flight was cancelled?",
+       subtitle = "Comparison of density frequency polygons of cancelled vs. non-cancelled flights") +
+  scale_x_continuous(breaks = seq(0,24, by = 2))
+```
+
+Lastly, we can also work on the data set, compute the percentage of flights that are cancelled within each hour and plot the percentage as shown in @fig-q1b-ex5.1 .
+
+```{r}
+#| label: fig-q1b-ex5.1
+#| fig-cap: "Percentage of flights cancelled each hour"
+#| code-fold: true
+
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100
+  ) |>
+  group_by(sched_hour) |>
+  summarise(
+    cancelled = sum(cancelled),
+    total = n()
+  ) |>
+  mutate (prop_cancelled = cancelled/total) |>
+  ggplot(aes(x = sched_hour,
+             y = prop_cancelled*100)) +
+  geom_line() +
+  geom_point() +
+  xlim(4,24) +
+  ylim(0, 5) +
+  scale_x_continuous(breaks = seq(4, 24, 2)) +
+  coord_cartesian(xlim = c(4, 24)) +
+  labs(x = "Scheduled Departure Time (in hrs)",
+       y = "Percentage of flights that were cancelled",
+       subtitle = "Percentage of cancelled flights over different scheduled departure times") +
+  theme_minimal()
+```
+
+2.  As we can see from the correlation plot in @fig-q2-ex5.1, the variable most important for predicting the price of a diamond is **`carat`** , i.e. the weight of the diamond.
+
+  ```{r}
+  #| label: fig-q2-ex5.1
+  #| fig-cap: "Correlation plot to check which variable is most important predicting price of the diamond"
+  #| code-fold: true
+
+  diamonds |>
+    select(-c(cut, color, clarity)) |>
+    cor() |>
+    corrplot::corrplot(method = "number")
+  ```
+
+  The variable `cut` is an ordinal variable, so we cant do numerical correlation test, rather we can observe the graphical relation as shown in @fig-q2a-ex5.1. There appears to be a slight negative correlation, as is indicated by decreasing medians. It is apparent that poorer quality diamonds, i.e. lower `cut` have larger weight, i.e. `carat`. Thus, the combination of these two relationships, i.e.,
+
+-   Higher `carat` diamonds having higher price.
+
+-   Lower `cut` diamonds having higher `carat`.
+
+lead to lower quality diamonds being more expensive (since they are heavier, i.e of higher `carat`).
+
+```{r}
+#| label: fig-q2a-ex5.1
+#| fig-cap: "Relation between cut and carat of a diamond"
+#| code-fold: true
+
+diamonds |>
+  ggplot(aes(x = cut,
+             y = carat)) +
+  geom_boxplot(notch = TRUE,
+               varwidth = TRUE,
+               fill = "lightgrey",
+               outlier.alpha = 0.1) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(0,2)) +
+  labs(x = "Cut of the diamond",
+       y = "Carat of the diamond",
+       caption = "Note 1: Width of boxplot is proportional to square root of the number of observations.\nNote 2: The notches don't overlap indicating that medians are significantly different",
+       title = "Relation between cut and carat")
+```
+
+3.  When we add `coord_flip()` to the previous answer's code we get a horizontal box-plot shown below in @fig-q3-ex5.1.
+
+Using `coord_flip()` is easier than the approach of changing variables, as we don't need to manually change the variables' assignment in the entire code.
+
+```{r}
+#| label: fig-q3-ex5.1
+#| fig-cap: "Use of coord_flip() to flip the coordinates"
+#| code-fold: true
+
+diamonds |>
+  ggplot(aes(x = cut,
+             y = carat)) +
+  geom_boxplot(notch = TRUE,
+               varwidth = TRUE,
+               fill = "lightgrey",
+               outlier.alpha = 0.1) +
+  theme_minimal() +
+  labs(x = "Cut of the diamond",
+       y = "Carat of the diamond",
+       caption = "Note 1: Width of boxplot is proportional to square root of the number of observations.\nNote 2: The notches don't overlap indicating that medians are significantly different",
+       title = "Relation between cut and carat") +
+  coord_flip(ylim = c(0,2))
+```
+
+4.  The **letter-value box plot** is an extension of the traditional boxplot method. While conventional boxplots provide a basic overview of the central 50% of data and its spread, they might not offer accurate information about data points outside the quartiles, especially for larger data sets.
+
+For larger data-sets (around 10,000 to 100,000 observations), more precise estimates of quantiles beyond the quartiles can be obtained, and a higher number of "outliers" are likely to be present (approximately 0.4 plus 0.007 times the sample size).
+
+The letter-value box plot tackles these limitations by conveying more detailed information about the tails of the data using letter values. These letter values are utilized as reliable estimates of their corresponding quantiles only up to a certain depth into the tails. Additionally, "outliers" are defined based on the most extreme letter value depicted in the plot.
+
+From my comprehension, the widest box encompasses letter values that correspond to (rough) quartiles. Subsequent wider boxes encompass letter values spanning from (rough) quartiles to (rough) octiles and further, extending in both directions. This pattern continues iteratively.[^1]
+
+[^1]: This my my interpretation, and needs confirmation. Please comment or leave a pull request / issue on GitHub.
+
+However, in my view, a **violin plot**, like the one shown in @fig-q4b-ex5.1, is more intuitive and easier to understand.
+
+```{r}
+#| label: fig-q4a-ex5.1
+#| fig-cap: "LV Plot of price and cut"
+#| code-fold: true
+
+library(lvplot)
+diamonds |>
+  ggplot(aes(x = cut,
+             y = price)) +
+  geom_lv(fill = "lightgrey") +
+  theme_minimal() +
+  labs(x = "Cut of the diamond",
+       y = "Price of the diamond",
+       title = "Relation between cut and price with an LV-Plot")
+
+
+```
+
+```{r}
+#| label: fig-q4b-ex5.1
+#| fig-cap: "Violin Plot of price and cut"
+#| code-fold: true
+
+diamonds |>
+  ggplot(aes(x = cut,
+             y = price)) +
+  geom_violin(fill = "lightgrey") +
+  theme_minimal() + 
+  labs(x = "Cut of the diamond",
+       y = "Price of the diamond",
+       caption = "Note : Width of lvplot is proportional to square root of the number of observations",
+       title = "Relation between cut and price with a Violin Plot")
+```
+
+5.   Let us choose to study the relation between `cut` (a categorical variable) and `price`. The four methods --- `geom_violin()`, faceted `geom_histogram()`, colored `geom_freqpoly()`, and colored `geom_density()` --- each have their own strengths and limitations.
+
+(a)  **`geom_violin()`:**
+
+    ```{r}
+    #| code-fold: true
+
+    # Violin Plot
+    diamonds |>
+      ggplot(aes(x = cut,
+                 y = price)) +
+      theme_classic() + 
+      labs(x = "Cut of the diamond",
+           y = "Price of the diamond") + 
+      geom_violin() +
+      labs(title = "Violin Plot")
+    ```
+
+    -   **Pros:**
+        -   Provides a combination of a box plot and a kernel density plot.
+        -   Displays the distribution's shape, range, and density all in one plot.
+        -   Suitable for showing multimodal distributions and comparing the distributions of multiple categorical levels.
+    -   **Cons:**
+        -   Can become cluttered when comparing too many categories.
+        -   Might be less familiar to some audiences compared to more traditional plots like histograms.
+
+(b)  **Faceted `geom_histogram()`:**
+
+    ```{r}
+    #| code-fold: true
+
+    # Faceted histogram
+    diamonds |>
+      ggplot(aes(price)) +
+      theme_classic() +
+      geom_histogram() +
+      facet_wrap(~cut, 
+                 scales = "free") +
+      labs(title = "Faceted histogram")
+    ```
+
+    -   **Pros:**
+        -   Shows the distribution of each category using separate histograms.
+        -   Good for identifying differences in central tendency (mean, median etc.) and spread (variance etc.).
+    -   **Cons:**
+        -   Can be space-consuming when there are many categories.
+        -   Difficult to compare shapes of distributions directly due to varying bin widths.
+
+(c)  **Colored `geom_freqpoly()`:**
+
+    ```{r}
+    #| code-fold: true
+
+    # Coloured frequency polygon
+    diamonds |>
+      ggplot(aes(price)) +
+      theme_classic() +
+      geom_freqpoly(aes(color = cut),
+                    lwd = 1) +
+      scale_color_brewer(palette = "Dark2") +
+      labs(title = "Coloured frequency polygon")
+    ```
+
+    -   **Pros:**
+        -   Overlaid frequency polygons for each category allow for easy visual comparison.
+    -   **Cons:**
+        -   Over-plotting might occur if there are many categories.
+        -   Might not clearly display the density of the distributions.
+
+(d)  **Colored `geom_density()`:**
+
+    ```{r}
+    #| code-fold: true
+
+    # Coloured density plot
+    diamonds |>
+      ggplot(aes(price)) +
+      theme_classic() +
+      geom_density(aes(color = cut),
+                    lwd = 1) +
+      scale_color_brewer(palette = "Dark2") +
+      labs(title = "Coloured density plot")
+    ```
+
+    -   **Pros:**
+        -   Provides smoothed density plots for each category.
+        -   Offers a continuous representation of the distribution, aiding in identifying patterns and modes.
+    -   **Cons:**
+        -   May require familiarity with density plots for proper interpretation.
+        -   Not as effective for identifying specific data values (peaks, tails, etc.).
+
+Overall, the choice of visualization method depends on
+
+-   the goals of your analysis,
+
+-   the number of categorical levels, and
+
+-   the level of detail we want to convey.
+
+If we're aiming to show the overall distribution shape and density, `geom_violin()` and `geom_density()` are good options.
+
+For comparing distributions more directly, especially when you have few categories, `colored geom_freqpoly()` might be useful.
+
+Lastly, if you want to control bin-widths manually and compare median etc. more explicitly, faceted `geom_histogram()` can be effective.
+
+6.   The package `ggbeeswarm` uses two main functions:
+
+1.  `geom_quasirandom()`
+
+2.  `geom_beeswarm()`
+
+    The functions **`geom_quasirandom()`**, **`geom_beeswarm()`**, and **`geom_jitter()`** are used to deal with overplotting, where multiple data points in a plot share the same coordinates, making it hard to discern the individual points.
+
+|                        | **`geom_jitter()`**              | **`geom_quasirandom()`**                                                     | **`geom_beeswarm()`**                            |
+|------------------------|----------------------------------|------------------------------------------------------------------------------|--------------------------------------------------|
+| Purpose                | Introduce random noise to points | Spread points with controlled randomness along the categorical variable axis | Systematically arrange points to prevent overlap |
+| Data Distribution      | Less accurate due to randomness  | Maintains data distribution                                                  | Maintains data distribution                      |
+| Overplotting Reduction | Moderate                         | Moderate                                                                     | High                                             |
+| Data Integrity         | May compromise                   | Preserved                                                                    | Preserved                                        |
+| Customization          | Amount of jitter, direction      | Degree of randomness, separation                                             | Alignment, spacing, orientation                  |
+| Control                | Less control over point spacing  | More control over distribution                                               | More control over arrangement                    |
+| Use Cases              | Quick visualization              | Balance of distribution and overplotting                                     | Precise representation with reduced overplotting |
+| Complexity             | Simple                           | Moderate                                                                     | Moderate                                         |
+
+If we prioritize accurate data representation and control over the distribution of points, `geom_quasirandom()` or `geom_beeswarm()` might be more suitable. On the other hand, if we're looking for a quick and simple solution, `geom_jitter()` can still be effective, though it may lack some of the finer controls of the other options.
+
+Now, I demonstrate the difference in @fig-q6-1 between these using a subset *(88 observations)* of diamonds data-set with diamonds larger than 2.5 `carat`, and only of `Very Good`, `Premium`, `Ideal` cuts: --
+
+```{r}
+#| label: fig-q6-1
+#| fig-cap: "Comparison of four methods: geom_point(), geom_jitter(), geom_quasirandom() and geom_beeswarm() in defauly settings"
+#| code-fold: true
+#| fig-cap-location: top
+
+# intall.packages("ggbeeswarm")
+library(ggbeeswarm)
+g = diamonds |>
+  filter(carat > 2.5) |>
+  filter(cut %in% c("Very Good", "Premium", "Ideal")) |>
+  ggplot(aes(x = cut,
+            y = price)) +
+  theme_light() + 
+  labs(x = "Cut", y = "Price")
+
+gridExtra::grid.arrange(
+  
+  g + geom_point(alpha = 0.5) + labs(title = "geom_point()"),
+  
+  g + geom_jitter(alpha = 0.5) + labs(title = "geom_jitter"),
+  
+  g + geom_quasirandom(alpha = 0.5) + labs(title = "geom_quasirandom"),
+  
+  g + geom_beeswarm(alpha = 0.5) + labs(title = "geom_beeswarm")
+  
+)
+```
+
+The methods used by `geom_pseudorandom()` of the `ggbeeswarm` package, as studied from the package's [GitHub repo](https://github.com/eclarke/ggbeeswarm "https://github.com/eclarke/ggbeeswarm"), are: --
+
+1.  `quasirandom`: points are distributed within a kernel density estimate of the distribution with offset determined by quasirandom Van der Corput noise
+
+2.  `pseudorandom`: points are distributed within a kernel density estimate of the distribution with offset determined by pseudorandom noise a la jitter
+
+3.  `maxout`: points are distributed within a kernel density with points in a band distributed with highest value points on the outside and lowest in the middle
+
+4.  `minout`: points are distributed within a kernel density with points in a band distributed with highest value points in the middle and lowest on the outside
+
+5.  `tukey`: points are distributed as described in Tukey and Tukey "Strips displaying empirical distributions: I. textured dot strips"
+
+6.  `tukeyDense`: points are distributed as described in Tukey and Tukey but are constrained with the kernel density estimate
+
+The @fig-q6-2 *(axis labels and values removed to focus on points' distribution)* demonstrates these methods in `geom_quasirandom()` : --
+
+```{r}
+#| label: fig-q6-2
+#| fig-cap: "Avaialable methods in geom_quasirandom()"
+#| fig-cap-location: top
+#| code-fold: true
+
+g1 = g + 
+  labs(x = NULL, y = NULL) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank()
+        )
+
+gridExtra::grid.arrange(
+  
+  g1 + geom_quasirandom(method = "quasirandom") + 
+  labs(title = "method = quasirandom"),  
+  
+  g1 + geom_quasirandom(method = "tukey") + 
+  labs(title = "method = tukey"),
+
+  g1 + geom_quasirandom(method = "maxout") + 
+  labs(title = "method = maxout"),
+  
+  g1 + geom_quasirandom(method = "minout") + 
+  labs(title = "method = minout"),
+
+  g1 + geom_quasirandom(method = "tukey") + 
+  labs(title = "method = tukey"),
+
+  g1 + geom_quasirandom(method = "tukeyDense") + 
+  labs(title = "method = tukeyDense"),
+  
+  g1 + geom_quasirandom(method = "frowney") + 
+  labs(title = "method = frowney"),
+  
+  g1 + geom_quasirandom(method = "smiley") + 
+  labs(title = "method = smiley"),
+  
+  ncol = 2,
+  nrow = 4
+
+)
+```
+
+The methods used by `geom_beeswarm()` function are: --
+
+1.  **`swarm`** method:
+
+    -   Places points in increasing order.
+
+    -   Shifts overlapping points sideways to avoid overlap.
+
+2.  **`swarm2`** method:
+
+    -   Similar to "swarm" but follows beeswarm package method.
+
+3.  **`compactswarm`** method:
+
+    -   Uses greedy strategy for point placement.
+
+    -   Chooses point closest to non-data axis on each iteration.
+
+    -   Results in tightly-packed layout.
+
+    -   Prioritization used for breaking ties.
+
+4.  The other 3 methods first discretise the values along the data axis, in order to create more efficient packing.
+
+    i.  **`square`** method: Places points on a square grid.
+
+    ii. **`hex`** method: Places points on a hexagonal grid.
+
+    iii. **`centre`**/**`center`** method: Uses square grid for symmetric swarm.
+
+Note: The `square`, `hex` and `centre` methods discretize values along data axis. The number of breakpoints determined by available area and spacing argument
+
+The @fig-q6-3 *(axis labels and values removed to focus on points' distribution)* demonstrates methods in `geom_beeswarm()` : --
+
+```{r}
+#| label: fig-q6-3
+#| fig-cap: "Avaialable methods in geom_beeswarm()"
+#| fig-cap-location: top
+#| code-fold: true
+
+a = 3
+
+gridExtra::grid.arrange(
+  
+  g1 + geom_beeswarm(method = "swarm", cex = a) + 
+  labs(title = "method = swarm"),  
+ 
+  g1 + geom_beeswarm(method = "compactswarm", cex = a) + 
+  labs(title = "method = compactswarm"), 
+  
+  g1 + geom_beeswarm(method = "square", cex = a) + 
+  labs(title = "method = square"), 
+  
+  g1 + geom_beeswarm(method = "hex", cex = a) + 
+  labs(title = "method = hex"), 
+  
+  g1 + geom_beeswarm(method = "centre", cex = a) + 
+  labs(title = "method = centre"), 
+
+  g1 + geom_beeswarm(side = 1L, cex = a) + 
+  labs(title = "side = 1L"), 
+  
+  ncol = 2,
+  nrow = 3
+
+)
+```
+
+## 11.5.2.1 Exercises {.unnumbered}
+
+1.  Let us begin by recreating the dataset in @tbl-q1-ex5.2 as follows: --
+
+```{r}
+#| code-fold: true
+#| label: tbl-q1-ex5.2
+#| tbl-cap: "Using a table to display correlation between two categorical variables"
+
+data("diamonds")
+diamonds |>
+  count(cut, color) |>
+  pivot_wider(names_from = color,
+              values_from = n) |>
+  gt(rowname_col = "cut") |>
+  tab_header(title = "Distribution of color with cut")  |>
+  tab_spanner(label = "Color",
+              columns = everything()) |>
+  tab_stubhead(label = "Cut") |>
+  fmt_number(sep_mark = ",",
+             decimals = 0)
+```
+
+We can rescale the count dataset above to more clearly show the distribution of color within cut as shown in @fig-q1-ex5.2 .
+
+```{r}
+#| label: fig-q1-ex5.2
+#| fig-cap: "Using different scale to better show the correlation"
+
+diamonds |>
+  count(cut, color) |>
+  ggplot(aes(x = color,
+             y = cut)) +
+  geom_tile(aes(fill = n)) +
+  scale_fill_continuous(type = "viridis") +
+  labs(x = "Color", y = "Cut", fill = "Number of Diamonds") +
+  geom_text(aes(label = n),
+            color = "white")
+```
+
+2.  If we use a segmented bar chart, like the one shown below in @fig-q2-ex5.2 , we are able to see the proportional number of diamonds of each cut, within each colour of the diamonds. Thus, a segmented bar chart allows us to do proportional comparison and see relative distribution.
+
+The calculated counts for each segment is displayed within the @fig-q2-ex5.2 .
+
+```{r}
+#| label: fig-q2-ex5.2
+#| fig-cap-location: top
+#| fig-cap: "Segmented bar chart with color mapped to the x aesthetic and cut mapped to the fill aesthetic"
+
+diamonds |>
+  count(cut, color) |>
+  # Create a factor to use for colouring the text 
+  # (since some colours in fil are darker)
+  mutate(col_n = if_else(cut %in% c("Fair", "Good"),
+                         true = "Group1",
+                         false = "Group2")
+         ) |>
+  ggplot(aes(x = color,
+             y = n,
+             fill = cut,
+             label = n)) +
+  geom_bar(position = "fill",
+           stat = "identity") +
+  geom_text(
+    aes(color = col_n),
+    # adjust position so that numbers appear in middle of each segment
+    position = position_fill(vjust = 0.5)
+    ) +
+  theme_classic() +
+  scale_color_manual(values = c("white", "black")) +
+  labs(x = "Colour of the diamonds",
+       y = "Proportion of Diamonds",
+       fill = "Cut") +
+  guides(color = "none")
+
+```
+
+3.  I have created a tile plot of average flight departure delays by destination and month of year using `geom_tile()` in @fig-q3-ex5.2 . There are too many destinations, and human eye can only perceive so many colour patterns, so the plot has too much information and is thus difficult to read.
+
+Overall, I see that highest average departure delays occur in June - July and then in December. Also, some destinations have higher average departure delays across most months.
+
+```{r}
+#| label: fig-q3-ex5.2
+#| fig-cap: "Tile plot of average flight departure delays by destination and month of year"
+#| fig-cap-location: top
+#| fig-asp: 1.5
+#| code-fold: true
+
+df = nycflights13::flights |>
+  group_by(month, dest) |>
+  summarise(avg_dep_delay = mean(dep_delay, na.rm = TRUE)) |>
+  ungroup() |>
+  
+  # Removing destinations which have data missing for any one or more
+  # months, so that our tile plot appears nice
+  pivot_wider(names_from = month,
+              values_from = avg_dep_delay) |>
+  drop_na() |>
+  pivot_longer(cols = -dest,
+               names_to = "Month",
+               values_to = "avg_dep_delay") |>
+  mutate(Month = as.numeric(Month)) |>
+  mutate(month = as.factor(Month))
+  
+df |>
+  ggplot(aes(y = dest,
+             x = month,
+             fill = avg_dep_delay)) +
+  geom_tile(aes(group = month)) +
+  scale_fill_viridis_c() +
+  labs(x = "Month of the Year",
+       y = "Destinations" ,
+       fill = "Avg. Dep. Delay \n(in minutes)") +
+  theme(axis.text.y = element_text(size = 5))
+```
+
+Also, only to detect delays across months ignoring the destinations, we could draw a simple plot of average departure delay for each month as shown in @fig-q3a-ex5.2 .
+
+```{r}
+#| label: fig-q3a-ex5.2
+#| fig-cap: "Simple plot of average flight departure delays by month of year"
+#| fig-cap-location: top
+#| code-fold: true
+
+df |>
+  group_by(Month) |>
+  summarize(avg_dep_delay = mean(avg_dep_delay)) |>
+  mutate(avg_dep_delay = round(avg_dep_delay, digits = 1)) |>
+  ggplot(aes(x = Month,
+             y = avg_dep_delay,
+             label = avg_dep_delay)) +
+  geom_line() +
+  geom_point() + 
+  geom_text(position = position_nudge(y = 1)) +
+  scale_x_continuous(breaks = c(1:12)) + 
+  labs(x = "Month",
+       y = "Avg. Dep. Delay (in minutes)") +
+  theme_minimal()
+```
+
+We could improve the tile plot produced earlier by using the facility of package `seriation` which allows us to pick the following trends in the heat map shown in @fig-q3b-ex5.2: --
+
+-   Months 6, 7 and 12 have highest average departure delays
+
+-   Highest average departure delay airports are at bottom in @fig-q3b-ex5.2
+
+-   We are able to see that the highest average delays in June - July occur in airport like OKC, TUL, CAE, BHM, TYS
+
+-   We also observe that the airport DSM has highest delays from Jan - Apr and in June - July.
+
+```{r}
+#| label: fig-q3b-ex5.2
+#| fig-cap: "Improved heatmap to detect patterns in the Tile Plot"
+#| fig-cap-location: top
+#| fig-asp: 1.5
+#| code-fold: true
+
+# install.packages("seriation")
+# library(seriation)
+
+df |>
+  select(-Month) |>
+  pivot_wider(names_from = month,
+              values_from = avg_dep_delay) |>
+  drop_na() |>
+  column_to_rownames(var = "dest") |>
+  as.matrix() |>
+  seriation::gghmap(
+    row_labels = TRUE,
+    col_labels = TRUE,
+    Rowv =  get_rank(o, 1), Colv =  get_rank(o, 2)) +
+  labs(x = "Month of the Year",
+       y = "Destinations" ,
+       fill = "Avg. Dep. Delay \n(in minutes)") +
+  theme(axis.text.y = element_text(size = 5)) +
+   scale_fill_viridis_c()
+
+```
+
+## 11.5.3.1 Exercises {.unnumbered}
+
+1.  Yes, instead of summarizing the conditional distribution with a boxplot, we could use a frequency polygon. Here, we can compare differently colored frequency polygons by binning the carat, as shown in @fig-q1-ex5.3 . As we observe in @fig-q1-ex5.3, the difference between `cut_width()` and `cut_number()` is : --
+
+| **`cut_width()`**                                                                                                                                                                           | **`cut_number()`**                                                                                                                                 |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cut_width()` is used to divide the range of our data into equal-width bins. We specify the desired width of each bin, and the function automatically determines the appropriate bin edges. | `cut_number()` divides the data into a specified number of bins, trying to ensure that each bin has approximately the same number of observations. |
+| It is useful when we want to ensure that each bin covers a specific range of values, regardless of the distribution of our data.                                                            | This can be helpful when we want to maintain consistent bin sizes, while dealing with data that might not have a uniform distribution.             |
+
+When choosing between **`cut_width()`** and **`cut_number()`**, we need to consider the following:
+
+-   **Data Distribution**:
+
+    -   If your data is evenly distributed and we want equal-width bins, `cut_width()` might be a good choice.
+
+    -   If our data has an uneven distribution, `cut_number()` could help create bins with more consistent representation of observations.
+
+-   **Interpretability**:
+
+    -   Consider how well the bin edges align with meaningful values in your data. If having bin edges at specific points is important for interpretation, `cut_width()` might be more suitable.
+
+-   **Data Density**:
+
+    -   If we have a large number of data points, using `cut_number()` might help in creating more evenly populated bins.
+
+The impact of the choice between `cut_width()` and `cut_number()` on the visualization of the 2d distribution of `carat` and `price` is clear in @fig-q1-ex5.3 . The use of `cut_number()` is preferred as each of our frequency polygons now has equal number of observations, and is hence easily comparable.
+
+```{r}
+#| label: fig-q1-ex5.3
+#| fig-cap: "Impact of the choice between cut_width() and cut_number() on the visualization of the 2d distribution of carat and price"
+#| code-fold: true
+#| fig-cap-location: top
+#| fig-asp: 1
+
+gridExtra::grid.arrange(
+
+  diamonds |>
+    filter(carat < 3) |>
+    ggplot(aes(x = price)) +
+    geom_freqpoly(aes(color = cut_width(carat, width = 0.5)),
+                  lwd = 1, alpha  = 0.8) +
+    theme_minimal() +
+    scale_color_brewer(palette = "Greens") +
+    labs(x = "Price", color = "Carat", y = "Number of diamonds") +
+    scale_y_continuous(n.breaks = 4),
+
+  diamonds |>
+    filter(carat < 3) |>
+    ggplot(aes(x = price)) +
+    geom_freqpoly(aes(color = cut_number(carat, n = 7)),
+                  lwd = 1, alpha  = 0.8) +
+    theme_minimal() +
+    scale_color_brewer(palette = "Greens") +
+    labs(x = "Price", color = "Carat", y = "Number of diamonds") +
+    scale_y_continuous(n.breaks = 4),
+  
+  nrow = 2)
+
+```
+
+The use of `cut_width()` and `cut_number()` and their impact on the visualization of the 2d distribution of `carat` and `price` using boxplots is less obvious as shown here in @fig-q1a-ex5.3 . Variable widths in `cut_number()` boxplots can be misinterpreted as number of observations by a novice reader who doesn't pay attention to the x-axis.
+
+```{r}
+#| label: fig-q1a-ex5.3
+#| fig-cap: "Impact of cut_width() and cut_number() on boxplots' visualization of the 2d distribution of carat and price"
+#| code-fold: true
+#| fig-cap-location: top
+#| fig-asp: 1
+
+gridExtra::grid.arrange(
+  
+diamonds |>
+  filter(carat < 3) |>
+  ggplot(aes(x = carat,
+             y = price)) +
+  geom_boxplot(aes(group = cut_width(carat, width = 0.1)),
+               outlier.alpha = 0.2) +
+  theme_minimal() +
+  labs(x = NULL, subtitle = "cut_width", y = "Price"),
+
+diamonds |>
+  filter(carat < 3) |>
+  ggplot(aes(x = carat,
+             y = price)) +
+  geom_boxplot(aes(group = cut_number(carat, n = 20)),
+               outlier.alpha = 0.2) +
+  theme_minimal() +
+  labs(x = "Carat", subtitle = "cut_number", y = "Price"),
+
+nrow = 2)
+
+```
+
+2.  The distribution of `carat`, partitioned by `price` is shown below in @fig-q2-ex5.3 .
+
+```{r}
+#| label: fig-q2-ex5.3
+#| fig-cap: "The distribution of carat, partitioned by price"
+#| code-fold: true
+#| fig-cap-location: top
+#| fig-asp: 2
+
+gridExtra::grid.arrange(
+  
+  diamonds |>
+    filter(carat < 3) |>
+    ggplot(aes(x = price,
+               y = carat)) +
+    geom_boxplot(aes(group = cut_width(price, width = 2000)),
+                 outlier.alpha = 0.2) +
+    theme_minimal() +
+    labs(x = "Price (in $)",
+         title = "Boxplot",
+         y = "Carat") +
+    coord_flip(), 
+
+  diamonds |>
+    filter(carat < 3) |>
+    ggplot(aes(x = carat)) +
+    geom_freqpoly(aes(color = cut_number(price, n = 7)),
+                  lwd = 1, alpha  = 0.8) +
+    theme_minimal() +
+    scale_color_brewer(palette = "YlOrRd") +
+    labs(x = "Carat of the Diamond", 
+         color = "Price (in $)", 
+         y = "Number of diamonds",
+         title = "Frequency Polygon") +
+    scale_y_continuous(n.breaks = 4)
+    ,
+  
+  nrow = 2)
+
+    #  labels = c("$326 - $723",
+     #            "$723 - $1,050",
+      #           "$1.05K - $1.85K",
+       #          "$1.85K - $3.1K",
+        #         "$3.1K - $4.82K",
+         #        "$4.82K - $7.9K",
+          #       "$7.9K - $18.8K")
+```
+
+3.  The @fig-q3-ex5.3 depicts the Price distribution of very large diamonds compared to small diamonds through a box-plot by binning the price. It is not expected, rather we find no positive correlation between price and carat (weight) of the diamond for larger diamonds, greater than 3 carats.
+
+The @fig-q3a-ex5.3 explains this strange phenomenon partially. There are very few diamonds in the category \> 3 carats and most of them near 3 carats are still priced differently. Thus, it is likely that the price of larger diamonds is more affected by other variables than simply the weight (`carat`) of the diamond.
+
+```{r}
+#| label: fig-q3-ex5.3
+#| fig-cap-location: top
+#| fig-cap: "Price distribution of very large diamonds compared to small diamonds"
+#| code-fold: true
+
+diamonds |>
+    mutate(big_c = ifelse(carat < 3, 
+                          "Small Diamonds < 3 carats",
+                          "Big Diamonds > 3 Carats")
+           ) |>
+    mutate(big_c = factor(big_c,
+                          levels = c("Small Diamonds < 3 carats",
+                          "Big Diamonds > 3 Carats"))) |>
+    ggplot(aes(x = price,
+               y = carat)) +
+    geom_boxplot(aes(group = cut_width(price, width = 2000)),
+                 outlier.alpha = 0.2) +
+    theme_minimal() +
+    labs(x = "Price (in $)",
+         y = "Carats") +
+    coord_flip() +
+  facet_wrap(~big_c, 
+             ncol = 2,
+             scales = "free_x")
+```
+
+```{r}
+#| label: fig-q3a-ex5.3
+#| fig-cap-location: top
+#| fig-cap: "Scatter-plot of price & carat of very large diamonds compared to small diamonds"
+#| code-fold: true
+
+diamonds |>
+    mutate(big_c = ifelse(carat < 3, 
+                          "Small Diamonds < 3 carats",
+                          "Big Diamonds > 3 Carats")
+           ) |>
+    mutate(big_c = factor(big_c,
+                          levels = c("Small Diamonds < 3 carats",
+                          "Big Diamonds > 3 Carats"))) |>
+    ggplot(aes(x = price,
+               y = carat)) +
+    geom_point(aes(colour = big_c,
+                   fill = big_c),
+               alpha = 0.5) +
+    geom_smooth(se = FALSE,
+                col = "black") +
+    theme_minimal() +
+    labs(x = "Price (in $)",
+         y = "Carats") +
+    coord_flip() +
+    facet_wrap(~big_c, 
+             ncol = 2,
+             scales = "free_x") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+```
+
+However, an important thing to note is most of larger diamonds are of exactly 3 Carats here, and we see a consistent pattern of more diamonds at exact integer values of Carats - thus indicating an observation bias - tendency of observation recorder to round off to nearest integer, perhaps. If we remove the exactly 3 carat diamonds, the rise in price with carat is similar, or even faster in larger diamonds than small diamonds (@fig-q3b-ex5.3) Thus, there is nothing surprising in the price distribution.
+
+```{r}
+#| label: fig-q3b-ex5.3
+#| fig-cap-location: top
+#| fig-cap: "Scatter-plot of price & carat of large diamonds vs. small diamonds, with 3.1 Carats as cut-off"
+#| code-fold: true
+
+
+diamonds |>
+    mutate(big_c = ifelse(carat < 3.1, 
+                          "Small Diamonds < 3.1 carats",
+                          "Big Diamonds > 3.1 Carats")
+           ) |>
+    mutate(big_c = factor(big_c,
+                          levels = c("Small Diamonds < 3.1 carats",
+                          "Big Diamonds > 3.1 Carats"))) |>
+    ggplot(aes(x = price,
+               y = carat)) +
+    geom_point(aes(colour = big_c,
+                   fill = big_c),
+               alpha = 0.5) +
+     geom_smooth(se = FALSE,
+                 col = "black") +
+    theme_minimal() +
+    labs(x = "Price (in $)",
+         y = "Carats") +
+    coord_flip() +
+    facet_wrap(~big_c, 
+             ncol = 2,
+             scales = "free_x") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+```
+
+4.  The @fig-q4-ex5.3 shows the combined distribution of cut, carat, and price of diamonds.
+
+The price rise with increasing `carat` seems to be steeper for `Good`, `Very Good` and `Premium` cut diamonds, as compared to others.
+
+```{r}
+#| label: fig-q4-ex5.3
+#| fig-cap-location: top
+#| fig-cap: "The combined distribution of cut, carat, and price of diamonds"
+#| fig-asp: 2
+
+diamonds |>
+  ggplot(aes(x = price,
+               y = carat)) +
+  geom_boxplot(aes(group = cut_width(price, width = 2000)),
+                 outlier.alpha = 0.2) +
+  geom_smooth(se = FALSE, color = "darkgrey", 
+              lwd = 1.5, alpha = 0.3) +
+  facet_wrap(~cut, nrow = 5) +
+  scale_x_continuous(labels = scales::comma_format(prefix = "$")) +
+  coord_flip() +
+  labs(x = "Carat", y = "Price")
+```
+
+5.  The code is shown below:
+```         
+diamonds |>    
+  filter(x >= 4) |>   
+  ggplot(aes(x = x, y = y)) +   
+  geom_point() +   
+  coord_cartesian(xlim = c(4, 11), ylim = c(4, 11))
+```
+
+A scatter plot is a better display than a binned plot for revealing outliers that are not visible in one-dimensional plots, because: --
+
+1.  **Multivariate Visualization**: A scatter plot (shown in @fig-q5-ex5.3) displays data points in a two-dimensional space, where each point corresponds to a combination of values from two variables (for example, here in this example, `x` and `y`). This allows us to visualize the relationships and interactions between these variables.
+
+    In contrast, a binned plot (shown in @fig-q5-ex5.3) typically aggregates data into bins on a single axis, losing the individual data point information.
+
+    Thus, unusual combinations of `x` and `y` values are more easily detectable in a scatter plot.
+
+2.  **Pattern Recognition**: Scatter plots enable the identification of patterns, clusters, trends, or correlations between outliers and rest of the data. Outliers might be associated with specific patterns. For example, in @fig-q5-ex5.3 **we can label the individual outliers in a scatter-plot** using the ID of the diamonds in the data-set and observe whether outliers tend to cluster together. As we can see, outliers are having higher `x` than `y` , i.e. there are some abnormally long diamonds *(*`x` *= length in mm, in this data-set).*
+
+    On the other hand, Binned plots group data into bins or intervals, which can hide the underlying density and distribution of individual data points.
+
+3.  **Quantitative Assessment**: Scatter plots allow for quantitative assessment of the distance of outliers from the main cluster of data points. This distance can provide insight into the magnitude of deviation from the expected values.
+
+    In binned plots, like a box-plot, this visual quantitative assessment is lost as individual data points are binned together.
+
+In summary, a scatter plot are a superior choice when the goal is to identify outliers based on combined values of two variables.
+
+```{r}
+#| label: fig-q5-ex5.3
+#| fig-cap-location: top
+#| fig-cap: "Scatter-plot vs. Binned Plot for detecting outliers in a two-dimensional plot"
+#| fig-asp: 1
+
+gridExtra::grid.arrange(
+  
+  diamonds |>    
+    mutate(res_lm = (lm(diamonds$y ~ diamonds$x)$residuals)) |>
+    filter(x >= 4) |>
+    mutate(res_lm = res_lm < -1 | res_lm > 1) |>
+    rowid_to_column() |>
+    mutate(rowid = ifelse(res_lm, rowid, NA)) |>
+    ggplot(aes(x = x, 
+               y = y,
+               label = rowid)) +   
+    geom_point(alpha = 0.2) +
+    coord_cartesian(xlim = c(4, 11), ylim = c(4, 11)) +
+    ggrepel::geom_text_repel(size = 3) +
+    labs(x = "x", y = "y",
+         subtitle = "Scatter-Plot for detecting outliers"),
+
+  diamonds |>
+    mutate(x_group = cut_width(x, width = 1)) |>
+    ggplot(aes(y = y, x = x_group)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(4, 11)) +
+    labs(x = "x", y = "y",
+         subtitle = "Binned Plot for detecting outliers"),
+
+nrow = 2)
+
+
+```
+
+6.  Let us recreate the @fig-q1a-ex5.3 below to explain the advantages and disadvantages of `cut_number()` over the approach of `cut_width()` : --
+
+```{r}
+#| label: fig-q6-ex5.3
+#| fig-cap: "Advantages and disadvantages of cut_width() vs. cut_number()"
+#| code-fold: true
+#| fig-cap-location: top
+#| fig-asp: 1.5
+
+gridExtra::grid.arrange(
+  
+diamonds |>
+  filter(carat < 3) |>
+  ggplot(aes(x = carat,
+             y = price)) +
+  geom_boxplot(aes(group = cut_width(carat, width = 0.1)),
+               outlier.alpha = 0.2) +
+  theme_minimal() +
+  labs(x = NULL, 
+       title = "cut_width", 
+       subtitle = "Each boxplot is of equal width, i.e. interval, but contains different number of observations",
+       y = "Price"),
+
+diamonds |>
+  filter(carat < 3) |>
+  ggplot(aes(x = carat,
+             y = price)) +
+  geom_boxplot(aes(group = cut_width(carat, width = 0.1)),
+               varwidth = TRUE,
+               outlier.alpha = 0.2) +
+  theme_minimal() +
+  labs(x = NULL, 
+       title = "cut_width with varwidth = TRUE",
+       subtitle = "Each boxplot is of equal interval, but width reflects the square root of number of observations",
+       y = "Price"),
+
+diamonds |>
+  filter(carat < 3) |>
+  ggplot(aes(x = carat,
+             y = price)) +
+  geom_boxplot(aes(group = cut_number(carat, n = 20)),
+               outlier.alpha = 0.2) +
+  theme_minimal() +
+  labs(x = "Carat", 
+       title = "cut_number",
+       subtitle = "Each boxplot has equal number of observations, and the width reflects the interval covered",
+       y = "Price"),
+
+nrow = 3)
+```
+
+**Advantages of `cut_number()` for equal number of points in each bin:**
+
+1.  **Balanced Bin Sizes:** The primary advantage of using `cut_number()` is that it results in bins that contain roughly equal numbers of data points. This is useful when we want to ensure that each bin has a similar sample size, which can provide more stable statistical comparisons and analyses.
+
+2.  **Reflects distribution better for skewed data:** Binning by equal number of points can be useful when dealing with skewed or unevenly distributed data. This approach ensures that each bin captures a representative sample from different parts of the data distribution.
+
+3.  **Incorporates data density:** `cut_number()` takes data density into account. In areas of high density, bins might be narrower, and in areas of low density, bins might be wider. This can provide a more granular view of data variations.
+
+**Disadvantages of `cut_number()`:**
+
+1.  **Uneven Bin Widths makes visual comparison tough**: While `cut_number()` results in bins with roughly equal numbers of points, the bin widths can vary significantly. This might make it harder to visually compare the distribution across different bins.
+
+2.  **Skewed Data Presentation**: Uneven bin widths result in skewed visual presentations of data. For example, if one bin contains a large range of values, the visualization gives undue importance to the larger range. For example, in @fig-q1a-ex5.3, the rhird graph has the last bin abnormally wide.
+
+3.  **Potential loss of information**: If our data has distinct clusters, or regions of interest that span different value ranges, using `cut_number()` could lead to the loss of this information in favor of equalizing the bin sizes.
+
+In summary, the following table compares the 3 approaches: --
+
+|                                | **`cut_width()`**                                              | **`cut_width(varwidth = TRUE)`**                               | **`cut_number()`**                                                                                                               |
+|--------------------------------|----------------------------------------------------------------|----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| **Bin Width Control**          | All bin widths are equal in width.                             | Bin widths can vary with square root of sample size.           | Bin widths vary for balanced sample size.                                                                                        |
+| **Reflects Data Distribution** | May not always capture underlying distribution                 | Can better capture data density and distribution               | Can better capture data density and distribution.                                                                                |
+| **Visual Comparison**          | Equal bin widths facilitate easy visual comparison             | Variable bin widths might distort visual comparison            | Variable bin widths might distort visual comparison                                                                              |
+| **Sensitive to Data Density**  | Less sensitive to data density                                 | More sensitive to data density                                 | More sensitive to data density                                                                                                   |
+| **Potential Overplotting**     | May lead to overplotting if bin widths are too small           | Variable bin widths may alleviate overplotting                 | Variable bin widths may alleviate overplotting                                                                                   |
+| **Potential Information Loss** | All bins are of equal interval, so information well presented. | All bins are of equal interval, so information well presented. | Unequal bin widths might obscure data distribution in wider bins. Possibility of losing outliers, as evident in @fig-q1a-ex5.3 . |
